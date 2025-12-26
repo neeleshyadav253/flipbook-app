@@ -1,0 +1,36 @@
+.flipbook-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  min-height: 100vh;
+}
+
+.page {
+  background: white;
+}
+
+.page img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.controls button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #111;
+  color: white;
+  border: none;
+}
+
+.controls button:disabled {
+  opacity: 0.4;
+}
