@@ -228,7 +228,6 @@ export default function FlipBook() {
 
       {/* Header */}
       <div className="header">
-        <h1>Flipbook</h1>
         <p>
           {isMobile
             ? "Swipe to flip pages"
