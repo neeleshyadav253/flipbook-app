@@ -6,8 +6,8 @@ export default function FlipBook() {
   const bookRef = useRef(null);
   const containerRef = useRef(null);
 
-  const DESKTOP_SPREADS = 46; // each = one image across 2 pages
-  const MOBILE_PAGES = 92; // single pages
+  const DESKTOP_SPREADS = 46;
+  const MOBILE_PAGES = 92;
 
   const [page, setPage] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -15,7 +15,13 @@ export default function FlipBook() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [size, setSize] = useState({ width: 900, height: 600 });
 
-  /* ---------------- Layout calculation ---------------- */
+  /* ---------------- Zoom State ---------------- */
+  const [zoomed, setZoomed] = useState(false);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const lastTap = useRef(0);
+  const dragStart = useRef({ x: null, y: null });
+
+  /* ---------------- Layout ---------------- */
   useEffect(() => {
     const updateLayout = () => {
       const width = window.innerWidth;
@@ -64,26 +70,69 @@ export default function FlipBook() {
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
-
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  /* ---------------- Pages (NEVER NULL) ---------------- */
+  /* ---------------- Zoom Handlers ---------------- */
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      setZoomed((z) => !z);
+      setOffset({ x: 0, y: 0 });
+    }
+    lastTap.current = now;
+  };
+
+  const handlePointerDown = (e) => {
+    if (!zoomed) return;
+    dragStart.current = {
+      x: e.clientX - offset.x,
+      y: e.clientY - offset.y,
+    };
+  };
+
+  const handlePointerMove = (e) => {
+    if (!zoomed || dragStart.current.x === null) return;
+    setOffset({
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y,
+    });
+  };
+
+  const handlePointerUp = () => {
+    dragStart.current = { x: null, y: null };
+  };
+
+  /* ---------------- Pages ---------------- */
   const pages = useMemo(() => {
     const count = isMobile ? MOBILE_PAGES : DESKTOP_SPREADS;
     const folder = isMobile ? "mobile" : "desktop";
 
     return Array.from({ length: count }).map((_, i) => (
       <div key={i} className="page">
-        <img
-          src={`${import.meta.env.BASE_URL}flipbook/${folder}/${i + 1}.png`}
-          alt={`Page ${i + 1}`}
-          draggable={false}
-        />
+        <div
+          className={`zoom-container ${zoomed ? "zoomed" : ""}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onClick={isMobile ? handleDoubleTap : undefined}
+          style={{
+            transform: zoomed
+              ? `scale(2) translate(${offset.x / 2}px, ${offset.y / 2}px)`
+              : "scale(1)",
+          }}
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}flipbook/${folder}/${i + 1}.png`}
+            alt={`Page ${i + 1}`}
+            draggable={false}
+          />
+        </div>
       </div>
     ));
-  }, [isMobile]);
+  }, [isMobile, zoomed, offset]);
 
   const totalPages = pages.length;
 
@@ -96,43 +145,32 @@ export default function FlipBook() {
           align-items: center;
           padding: 16px;
           min-height: 100vh;
-          background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 50%, #16213e 100%);
+          background: linear-gradient(135deg, #1a1a2e, #0f0f1e, #16213e);
         }
 
         .page {
           background: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           overflow: hidden;
         }
 
-        .page img {
+        .zoom-container {
+          width: 100%;
+          height: 100%;
+          touch-action: none;
+          transition: transform 0.25s ease;
+          cursor: grab;
+        }
+
+        .zoom-container.zoomed {
+          cursor: grabbing;
+        }
+
+        .zoom-container img {
           width: 100%;
           height: 100%;
           object-fit: contain;
           pointer-events: none;
           user-select: none;
-        }
-
-        .header {
-          text-align: center;
-          margin-bottom: 24px;
-        }
-
-        .header h1 {
-          font-size: 2.5rem;
-          font-weight: bold;
-          background: linear-gradient(120deg, #3b82f6, #8b5cf6, #ec4899);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          margin-bottom: 8px;
-        }
-
-        .header p {
-          color: #9ca3af;
-          font-size: 0.875rem;
         }
 
         .controls {
@@ -141,7 +179,6 @@ export default function FlipBook() {
           margin-top: 24px;
           flex-wrap: wrap;
           justify-content: center;
-          align-items: center;
         }
 
         .nav-group {
@@ -149,10 +186,8 @@ export default function FlipBook() {
           align-items: center;
           gap: 12px;
           background: rgba(31, 41, 55, 0.6);
-          backdrop-filter: blur(10px);
           padding: 12px 20px;
           border-radius: 9999px;
-          border: 1px solid rgba(75, 85, 99, 0.5);
         }
 
         .controls button {
@@ -162,80 +197,22 @@ export default function FlipBook() {
           color: white;
           border: none;
           cursor: pointer;
-          transition: all 0.2s ease;
           font-weight: 500;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.875rem;
-        }
-
-        .controls button:hover:not(:disabled) {
-          background: #2563eb;
-          transform: scale(1.05);
-        }
-
-        .controls button:active:not(:disabled) {
-          transform: scale(0.95);
         }
 
         .controls button:disabled {
           opacity: 0.4;
           cursor: not-allowed;
-          background: #4b5563;
-        }
-
-        .nav-btn {
-          padding: 8px;
-          min-width: unset;
-        }
-
-        .fullscreen-btn {
-          background: linear-gradient(120deg, #8b5cf6, #3b82f6);
-          padding: 12px 24px;
-        }
-
-        .fullscreen-btn:hover:not(:disabled) {
-          background: linear-gradient(120deg, #7c3aed, #2563eb);
         }
 
         .page-counter {
           color: white;
           font-weight: 600;
-          font-size: 0.875rem;
           min-width: 80px;
           text-align: center;
-          background: rgba(17, 24, 39, 0.6);
-          padding: 6px 16px;
-          border-radius: 9999px;
-        }
-
-        .stf__block {
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-        }
-
-        @media (max-width: 640px) {
-          .header h1 {
-            font-size: 2rem;
-          }
-          
-          .controls {
-            flex-direction: column;
-            gap: 12px;
-          }
         }
       `}</style>
 
-      {/* Header */}
-      <div className="header">
-        <p>
-          {isMobile
-            ? "Swipe to flip pages"
-            : "Click pages or use arrow buttons"}
-        </p>
-      </div>
-
-      {/* Flipbook */}
       <HTMLFlipBook
         ref={bookRef}
         width={size.width}
@@ -244,22 +221,24 @@ export default function FlipBook() {
         showCover={!isMobile}
         usePortrait={isMobile}
         drawShadow={!isMobile}
-        mobileScrollSupport
-        onFlip={(e) => setPage(e.data)}
+        mobileScrollSupport={!zoomed}
+        disableFlipByClick={zoomed}
+        onFlip={(e) => {
+          setPage(e.data);
+          setZoomed(false);
+          setOffset({ x: 0, y: 0 });
+        }}
       >
         {pages}
       </HTMLFlipBook>
 
-      {/* Controls */}
       <div className="controls">
         <div className="nav-group">
           <button
-            className="nav-btn"
             onClick={() => bookRef.current?.pageFlip().flipPrev()}
             disabled={page === 0}
-            aria-label="Previous page"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft />
           </button>
 
           <span className="page-counter">
@@ -267,27 +246,15 @@ export default function FlipBook() {
           </span>
 
           <button
-            className="nav-btn"
             onClick={() => bookRef.current?.pageFlip().flipNext()}
             disabled={page === totalPages - 1}
-            aria-label="Next page"
           >
-            <ChevronRight size={20} />
+            <ChevronRight />
           </button>
         </div>
 
-        <button className="fullscreen-btn" onClick={toggleFullscreen}>
-          {isFullscreen ? (
-            <>
-              <Minimize size={16} />
-              Exit Fullscreen
-            </>
-          ) : (
-            <>
-              <Maximize size={16} />
-              Fullscreen
-            </>
-          )}
+        <button onClick={toggleFullscreen}>
+          {isFullscreen ? <Minimize /> : <Maximize />}
         </button>
       </div>
     </div>
